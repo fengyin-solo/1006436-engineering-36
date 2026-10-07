@@ -34,5 +34,17 @@ export type ActionResult = {
 
 export type OverviewResult = {
   cards: { label: string; value: number }[]
-  modules: { name: string; created: number; pending: number; abnormal: number }[]
+  modules: {
+    name: string
+    created: number
+    pending: number
+    abnormal: number
+    // 培训模块专有口径：已考核场次、本月场次；其它模块为 null，页面按需展示。
+    assessedCount?: number | null
+    monthCount?: number | null
+  }[]
+  training?: {
+    assessedCount: number
+    monthCount: number
+  }
 }

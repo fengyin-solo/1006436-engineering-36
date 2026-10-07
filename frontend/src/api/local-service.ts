@@ -1,5 +1,6 @@
 import { MODULE_BY_KEY } from '@/data/modules'
 import { allRows, listRows, resetRows, saveRows } from '@/data/local-store'
+import { assessedTrainingCount, TRAINING_MODULE_KEY } from '@/data/training'
 import type { ActionResult, EntryRow, ModuleMeta, OverviewResult, PageResult } from '@/data/types'
 
 // 会写进数据的「往回走」动作：命中就把这条记录标成异常态，看板上能一眼看出来。
@@ -44,11 +45,24 @@ export function runAction(key: string, id: number, action: string): ActionResult
     return { ok: false, message: `${meta.entity}已经是「${target}」，不用重复操作` }
   }
   const lastStatus = meta.statuses[meta.statuses.length - 1]
+  const isTraining = key === TRAINING_MODULE_KEY
   const updated: EntryRow = {
     ...rows[index],
     status: target,
-    pending: target !== lastStatus,
-    abnormal: NEGATIVE_ACTIONS.some((verb) => action.startsWith(verb)),
+    // 培训的待办口径以「已考核」收尾、「已取消」算异常；其他模块沿用各自末状态。
+    pending: isTraining ? target !== '已考核' && target !== '已取消' : target !== lastStatus,
+    abnormal: isTraining
+      ? target === '已取消'
+      : NEGATIVE_ACTIONS.some((verb) => action.startsWith(verb)),
+  }
+  if (isTraining) {
+    // 培训模块的业务字段跟着状态走：提交考核给真实档位，取消/退回则回到未考核。
+    updated['培训状态'] = target
+    if (target === '已考核') {
+      updated['考核结果'] = '合格'
+    } else if (target !== '已取消') {
+      updated['考核结果'] = '未考核'
+    }
   }
   const next = [...rows]
   next[index] = updated
@@ -100,6 +114,7 @@ export function loadOverview(): OverviewResult {
     { label: '登记总量', value: modules.reduce((sum, item) => sum + item.created, 0) },
     { label: '待处理', value: modules.reduce((sum, item) => sum + item.pending, 0) },
     { label: '异常量', value: modules.reduce((sum, item) => sum + item.abnormal, 0) },
+    { label: '已考核培训场次', value: assessedTrainingCount(rows[TRAINING_MODULE_KEY] ?? []) },
   ]
   return { cards, modules }
 }
